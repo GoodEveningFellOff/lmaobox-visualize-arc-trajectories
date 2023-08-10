@@ -157,7 +157,7 @@ end)()
 
 
 
-callbacks.Register("PostPropUpdate", function()
+callbacks.Register("CreateMove", function(cmd)
 	pLocal = entities.GetLocalPlayer();
 	if not pLocal then projectile_line_cords, projectile_impact_cords = {}, {}; return end
 	
@@ -168,10 +168,12 @@ callbacks.Register("PostPropUpdate", function()
 	local projSpeed, projGravity, projOffset, projUpVelocity, projDrag = GetProjectileWeaponInfo(pWeapon);
 	if projSpeed == 0 then projectile_line_cords, projectile_impact_cords = {}, {}; return end
 
+	
 
+	delta_time = globals.TickInterval();
 
 	local aimAngle = engine.GetViewAngles();
-	local initPosition = pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]") + (aimAngle:Forward() * projOffset.x) + (aimAngle:Right() * projOffset.y * (pWeapon:IsViewModelFlipped() and -1 or 1)) + (aimAngle:Up() * projOffset.z);
+	local initPosition = pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]") + (pLocal:EstimateAbsVelocity() * delta_time) + (aimAngle:Forward() * projOffset.x) + (aimAngle:Right() * projOffset.y * (pWeapon:IsViewModelFlipped() and -1 or 1)) + (aimAngle:Up() * projOffset.z);
 	local initVelocity = aimAngle:Forward() * projSpeed + aimAngle:Up() * projUpVelocity;
 	local Gravity = 800 * projGravity;
 	local position = initPosition;
