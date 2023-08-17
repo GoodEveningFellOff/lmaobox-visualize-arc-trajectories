@@ -1,284 +1,451 @@
-local delta_time = 1/66
+local config = {
+	square = {
+		enabled = true;
+		r = 55;
+		g = 255;
+		b = 155;
+		a = 50;
+	};
+	
+	line = {
+		enabled = true;
+		r = 255;
+		g = 255;
+		b = 255;
+		a = 100;
+	};
+};
 
-local pLocal = nil;
-local pWeapon = nil;
-
-local projectile_line_cords = {};
-local projectile_impact_cords = {};
-
-local white_texture = draw.CreateTextureRGBA(string.char(
-	0xff, 0xff, 0xff, 0x32,
-	0xff, 0xff, 0xff, 0x32,
-	0xff, 0xff, 0xff, 0x32,
-	0xff, 0xff, 0xff, 0x32
-), 2, 2);
 
 
-local function drawPolygon(vertices)
-	local cords = {};
+-- Boring shit ahead!
+local MASK_SHOT_HULL = CONTENTS_SOLID | CONTENTS_MOVEABLE | CONTENTS_MONSTER | CONTENTS_WINDOW | CONTENTS_DEBRIS | CONTENTS_GRATE;
 
-	for i, pos in pairs(vertices) do
-		cords[i] = {pos[1], pos[2], 0, 0};
+local ItemDefinitions = (function()
+	local definitions = {
+		[222]	= 0;		--Mad Milk										tf_weapon_jar_milk
+		[812]	= 0;		--The Flying Guillotine							tf_weapon_cleaver
+		[833]	= 0;		--The Flying Guillotine (Genuine)				tf_weapon_cleaver
+		[1121]	= 0;		--Mutated Milk									tf_weapon_jar_milk
+
+		[44]	= 0;		--The Sandman									tf_weapon_bat_wood
+		[648]	= 0;		--The Wrap Assassin								tf_weapon_bat_giftwrap
+
+		[18]	= -1;		--Rocket Launcher								tf_weapon_rocketlauncher
+		[205]	= -1;		--Rocket Launcher (Renamed/Strange)				tf_weapon_rocketlauncher
+		[127]	= -1;		--The Direct Hit								tf_weapon_rocketlauncher_directhit
+		[228]	= -1;		--The Black Box									tf_weapon_rocketlauncher
+		[237]	= -1;		--Rocket Jumper									tf_weapon_rocketlauncher
+		[414]	= -1;		--The Liberty Launcher							tf_weapon_rocketlauncher
+		[441]	= -1;		--The Cow Mangler 5000							tf_weapon_particle_cannon	
+		[513]	= -1;		--The Original									tf_weapon_rocketlauncher
+		[658]	= -1;		--Festive Rocket Launcher						tf_weapon_rocketlauncher
+		[730]	= -1;		--The Beggar's Bazooka							tf_weapon_rocketlauncher
+		[800]	= -1;		--Silver Botkiller Rocket Launcher Mk.I			tf_weapon_rocketlauncher
+		[809]	= -1;		--Gold Botkiller Rocket Launcher Mk.I			tf_weapon_rocketlauncher
+		[889]	= -1;		--Rust Botkiller Rocket Launcher Mk.I			tf_weapon_rocketlauncher
+		[898]	= -1;		--Blood Botkiller Rocket Launcher Mk.I			tf_weapon_rocketlauncher
+		[907]	= -1;		--Carbonado Botkiller Rocket Launcher Mk.I		tf_weapon_rocketlauncher
+		[916]	= -1;		--Diamond Botkiller Rocket Launcher Mk.I		tf_weapon_rocketlauncher
+		[965]	= -1;		--Silver Botkiller Rocket Launcher Mk.II		tf_weapon_rocketlauncher
+		[974]	= -1;		--Gold Botkiller Rocket Launcher Mk.II			tf_weapon_rocketlauncher
+		[1085]	= -1;		--Festive Black Box								tf_weapon_rocketlauncher
+		[1104]	= -1;		--The Air Strike								tf_weapon_rocketlauncher_airstrike
+		[15006]	= -1;		--Woodland Warrior								tf_weapon_rocketlauncher
+		[15014]	= -1;		--Sand Cannon									tf_weapon_rocketlauncher
+		[15028]	= -1;		--American Pastoral								tf_weapon_rocketlauncher
+		[15043]	= -1;		--Smalltown Bringdown							tf_weapon_rocketlauncher
+		[15052]	= -1;		--Shell Shocker									tf_weapon_rocketlauncher
+		[15057]	= -1;		--Aqua Marine									tf_weapon_rocketlauncher
+		[15081]	= -1;		--Autumn										tf_weapon_rocketlauncher
+		[15104]	= -1;		--Blue Mew										tf_weapon_rocketlauncher
+		[15105]	= -1;		--Brain Candy									tf_weapon_rocketlauncher
+		[15129]	= -1;		--Coffin Nail									tf_weapon_rocketlauncher
+		[15130]	= -1;		--High Roller's									tf_weapon_rocketlauncher
+		[15150]	= -1;		--Warhawk										tf_weapon_rocketlauncher
+
+		[442]	= -1;		--The Righteous Bison							tf_weapon_raygun
+
+		[1178]	= -1;		--Dragon's Fury									tf_weapon_rocketlauncher_fireball
+
+		[39]	= 8;		--The Flare Gun									tf_weapon_flaregun
+		[351]	= 8;		--The Detonator									tf_weapon_flaregun
+		[595]	= 8;		--The Manmelter									tf_weapon_flaregun_revenge
+		[740]	= 8;		--The Scorch Shot								tf_weapon_flaregun
+		[1180]	= 0;		--Gas Passer									tf_weapon_jar_gas
+
+		[19]	= 5;		--Grenade Launcher								tf_weapon_grenadelauncher
+		[206]	= 5;		--Grenade Launcher (Renamed/Strange)			tf_weapon_grenadelauncher
+		[308]	= 5;		--The Loch-n-Load								tf_weapon_grenadelauncher
+		[996]	= 6;		--The Loose Cannon								tf_weapon_cannon
+		[1007]	= 5;		--Festive Grenade Launcher						tf_weapon_grenadelauncher
+		[1151]	= 4;		--The Iron Bomber								tf_weapon_grenadelauncher
+		[15077]	= 5;		--Autumn										tf_weapon_grenadelauncher
+		[15079]	= 5;		--Macabre Web									tf_weapon_grenadelauncher
+		[15091]	= 5;		--Rainbow										tf_weapon_grenadelauncher
+		[15092]	= 5;		--Sweet Dreams									tf_weapon_grenadelauncher
+		[15116]	= 5;		--Coffin Nail									tf_weapon_grenadelauncher
+		[15117]	= 5;		--Top Shelf										tf_weapon_grenadelauncher
+		[15142]	= 5;		--Warhawk										tf_weapon_grenadelauncher
+		[15158]	= 5;		--Butcher Bird									tf_weapon_grenadelauncher
+
+		[20]	= 1;		--Stickybomb Launcher							tf_weapon_pipebomblauncher
+		[207]	= 1;		--Stickybomb Launcher (Renamed/Strange)			tf_weapon_pipebomblauncher
+		[130]	= 3;		--The Scottish Resistance						tf_weapon_pipebomblauncher
+		[265]	= 3;		--Sticky Jumper									tf_weapon_pipebomblauncher
+		[661]	= 1;		--Festive Stickybomb Launcher					tf_weapon_pipebomblauncher
+		[797]	= 1;		--Silver Botkiller Stickybomb Launcher Mk.I		tf_weapon_pipebomblauncher
+		[806]	= 1;		--Gold Botkiller Stickybomb Launcher Mk.I		tf_weapon_pipebomblauncher
+		[886]	= 1;		--Rust Botkiller Stickybomb Launcher Mk.I		tf_weapon_pipebomblauncher
+		[895]	= 1;		--Blood Botkiller Stickybomb Launcher Mk.I		tf_weapon_pipebomblauncher
+		[904]	= 1;		--Carbonado Botkiller Stickybomb Launcher Mk.I	tf_weapon_pipebomblauncher
+		[913]	= 1;		--Diamond Botkiller Stickybomb Launcher Mk.I	tf_weapon_pipebomblauncher
+		[962]	= 1;		--Silver Botkiller Stickybomb Launcher Mk.II	tf_weapon_pipebomblauncher
+		[971]	= 1;		--Gold Botkiller Stickybomb Launcher Mk.II		tf_weapon_pipebomblauncher
+		[1150]	= 2;		--The Quickiebomb Launcher						tf_weapon_pipebomblauncher
+		[15009]	= 1;		--Sudden Flurry									tf_weapon_pipebomblauncher
+		[15012]	= 1;		--Carpet Bomber									tf_weapon_pipebomblauncher
+		[15024]	= 1;		--Blasted Bombardier							tf_weapon_pipebomblauncher
+		[15038]	= 1;		--Rooftop Wrangler								tf_weapon_pipebomblauncher
+		[15045]	= 1;		--Liquid Asset									tf_weapon_pipebomblauncher
+		[15048]	= 1;		--Pink Elephant									tf_weapon_pipebomblauncher
+		[15082]	= 1;		--Autumn										tf_weapon_pipebomblauncher
+		[15083]	= 1;		--Pumpkin Patch									tf_weapon_pipebomblauncher
+		[15084]	= 1;		--Macabre Web									tf_weapon_pipebomblauncher
+		[15113]	= 1;		--Sweet Dreams									tf_weapon_pipebomblauncher
+		[15137]	= 1;		--Coffin Nail									tf_weapon_pipebomblauncher
+		[15138]	= 1;		--Dressed to Kill								tf_weapon_pipebomblauncher
+		[15155]	= 1;		--Blitzkrieg									tf_weapon_pipebomblauncher
+
+		[42]	= 0;		--Sandvich										tf_weapon_lunchbox
+		[159]	= 0;		--The Dalokohs Bar								tf_weapon_lunchbox
+		[311]	= 0;		--The Buffalo Steak Sandvich					tf_weapon_lunchbox
+		[433] 	= 0;		--Fishcake										tf_weapon_lunchbox
+		[863]	= 0;		--Robo-Sandvich									tf_weapon_lunchbox
+		[1002]	= 0;		--Festive Sandvich								tf_weapon_lunchbox
+		[1190]	= 0;		--Second Banana									tf_weapon_lunchbox
+
+		[588]	= -1;		--The Pomson 6000								tf_weapon_drg_pomson
+		[997]	= 9;		--The Rescue Ranger								tf_weapon_shotgun_building_rescue
+
+		[17]	= 10;		--Syringe Gun									tf_weapon_syringegun_medic
+		[204]	= 10;		--Syringe Gun (Renamed/Strange)					tf_weapon_syringegun_medic
+		[36]	= 10;		--The Blutsauger								tf_weapon_syringegun_medic
+		[305]	= 9;		--Crusader's Crossbow							tf_weapon_crossbow
+		[412]	= 10;		--The Overdose									tf_weapon_syringegun_medic
+		[1079]	= 9;		--Festive Crusader's Crossbow					tf_weapon_crossbow
+
+		[56]	= 7;		--The Huntsman									tf_weapon_compound_bow
+		[1005]	= 7;		--Festive Huntsman								tf_weapon_compound_bow
+		[1092]	= 7;		--The Fortified Compound						tf_weapon_compound_bow
+
+		[58]	= 0;		--Jarate										tf_weapon_jar
+		[1083]	= 0;		--Festive Jarate								tf_weapon_jar
+		[1105]	= 0;		--The Self-Aware Beauty Mark					tf_weapon_jar
+	};
+
+	local definitions_fast = {};
+
+	local size = 0;
+	for i, _ in pairs(definitions) do
+		size = math.max(size, i);
 	end
 
-	draw.TexturedPolygon(white_texture, cords, true)
-end
+	for i = 1, size do
+		table.insert(definitions_fast, definitions[i] or false)
+	end
 
-local function clamp(a,b,c) return (a<b) and b or (a>c) and c or a; end
+	-- Its faster to index this table filled with shit than if we just indexed the definitions table
+	return definitions_fast;
+end)();
 
-local function SetRainbowColor()
-	local value = globals.CurTime()*math.pi;
 
-	draw.Color(math.floor(math.sin(value)*126 + 127), math.floor(math.sin(value + 2.1)*126 + 127), math.floor(math.sin(value + 4.2)*126 + 127), 255)
-end
+local vecLineCords = {};
+local vecImpactCords = {};
 
-local TraceHullProjectile = (function()
-	local min = Vector3(-4, -4, -4);
-	local max = Vector3(4, 4, 4);
-	local func = engine.TraceHull;
+local physicsEnvironment = physics.CreateEnvironment();
+physicsEnvironment:SetGravity( Vector3( 0, 0, -800 ) )
+physicsEnvironment:SetAirDensity( 2.0 )
+physicsEnvironment:SetSimulationTimestep(1/66)
 
-	return function(from, to)
-		return func(from, to, min, max, MASK_SHOT_HULL)
+
+local physicsObjects = (function()
+	local tbl = {};
+
+	local function new(path)
+		local solid, collisionModel = physics.ParseModelByName(path);
+		tbl[#tbl + 1] = physicsEnvironment:CreatePolyObject(collisionModel, solid:GetSurfacePropName(), solid:GetObjectParameters());
+	end
+																							--Grouped together when they have same solid object parameters
+
+	new("models/weapons/w_models/w_stickybomb.mdl")											--Stickybomb
+	new("models/workshop/weapons/c_models/c_kingmaker_sticky/w_kingmaker_stickybomb.mdl")	--QuickieBomb
+	new("models/weapons/w_models/w_stickybomb_d.mdl")										--ScottishResistance, StickyJumper
+						
+	return tbl
+end)();
+
+local GetPhysicsObject = (function()
+	local caseLast = 1;
+
+	physicsObjects[1]:Wake()
+
+	return function(case)
+		if case ~= caseLast then
+			physicsObjects[caseLast]:Sleep()
+			physicsObjects[case]:Wake()
+
+			caseLast = case;
+		end
+
+		return physicsObjects[case]
 	end
 end)()
 
-local GetProjectileWeaponInfo = (function()
-	local definitions = {
-		[19]    = 1;
-		[206]   = 1;
-		[1007]  = 1;
-		[1151]  = 1;
-		[15077] = 1;
-		[15079] = 1;
-		[15091] = 1;
-		[15092] = 1;
-		[15116] = 1;
-		[15117] = 1;
-		[15142] = 1;
-		[15158] = 1;
-		
-		[996]   = 2;
+local white_texture = draw.CreateTextureRGBA(string.char(
+	0xff, 0xff, 0xff, config.square.a,
+	0xff, 0xff, 0xff, config.square.a,
+	0xff, 0xff, 0xff, config.square.a,
+	0xff, 0xff, 0xff, config.square.a
+), 2, 2);
 
-		[308]   = 3;
+local drawPolygon = (function()
+	local v1x, v1y = 0, 0;
+	local function cross(a, b)
+		return (b[1] - a[1]) * (v1y - a[2]) - (b[2] - a[2]) * (v1x - a[1])
+	end
 
-		[997]   = 4;
-		[1079]  = 4;
-		[305]   = 4;
+	local TexturedPolygon = draw.TexturedPolygon;
 
-		[351]   = 5;
-		[39]    = 5;
-		[1081]  = 5;
-		[740]   = 5;
+	return function(vertices)
+		local cords, reverse_cords = {}, {};
+		local sizeof = #vertices;
+		local sum = 0;
 
-		[17]    = 6;
-		[204]   = 6;
-		[36]    = 6;
-		[412]   = 6;
+		v1x, v1y = vertices[1][1], vertices[1][2];
+		for i, pos in pairs(vertices) do
+			local convertedTbl = {pos[1], pos[2], 0, 0};
 
-		[56]    = 7;
-		[1005]  = 7;
-		[1092]  = 7;
+			cords[i], reverse_cords[sizeof - i + 1] = convertedTbl, convertedTbl;
 
-		[20]    = 8;
-		[207]   = 8;
-		[661]   = 8;
-		[130]   = 8;
-		--other sticky launchers
-		[265] = 8; -- sticky jumper
-		[797] = 8;
-		[806] = 8;
-		[886] = 8;
-		[895] = 8;
-		[904] = 8;
-		[913] = 8;
-		[962] = 8;
-		[971] = 8;
-		[15009] = 8;
-		[15012] = 8;
-		[15024] = 8;
-		[15038] = 8;
-		[15045] = 8;
-		[15048] = 8;
-		[15082] = 8;
-		[15083] = 8;
-		[15084] = 8;
-		[15113] = 8;
-		[15137] = 8;
-		[15138] = 8;
-		[15155] = 8;
+			sum = sum + cross(pos, vertices[(i % sizeof) + 1]);
+		end
 
-		[1150]  = 9;
+
+		TexturedPolygon(white_texture, (sum < 0) and reverse_cords or cords, true)
+	end
+end)();
+
+local function clamp(a,b,c) return (a<b) and b or (a>c) and c or a; end
+
+local GetProjectileInformation = (function()
+	local vecOffsets = {
+		Vector3(16, 8, -6),
+		Vector3(23.5, -8, -3),
+		Vector3(23.5, 12, -3),
+		Vector3(16, 6, -8)
 	};
 
-	local offset_vectors = {
-		[1] = Vector3(16, 8, -6);
-		[2] = Vector3(23.5, -8, -3);
-		[3] = Vector3(23.5, 12, -3);
-		[4] = Vector3(16, 6, -8);
+	local vecMaxs = {
+		Vector3(0, 0, 0),
+		Vector3(1, 1, 1),
+		Vector3(2, 2, 2),
+		Vector3(3, 3, 3)
 	};
 
-	return function(wep)
-		local projectile_case = definitions[wep:GetPropInt("m_iItemDefinitionIndex")];
-		local m_flChargeBeginTime =  (pWeapon:GetPropFloat("PipebombLauncherLocalData", "m_flChargeBeginTime") or 0);
+
+	return function(ent, is_ducking, case, index, id)
+		local m_flChargeBeginTime =  (ent:GetPropFloat("PipebombLauncherLocalData", "m_flChargeBeginTime") or 0);
 
 		if m_flChargeBeginTime ~= 0 then
 			m_flChargeBeginTime = globals.CurTime() - m_flChargeBeginTime;
 		end
 
-		if projectile_case == 1 then -- GrenadeLauncher
-			return 1216, 0.5, offset_vectors[1], 200, 0.45
+		if case == -1 then -- RocketLauncher, DragonsFury, Pomson, Bison
+			local vecOffset, vecThisMaxs, velForward = Vector3(23.5, -8, is_ducking and 8 or -3), vecMaxs[2], 0;
+			
+			if id == 22 or id == 65 then
+				vecOffset.y = (index == 513) and 0 or 12;
+				vecThisMaxs = vecMaxs[1];
+				velForward = (id == 65) and 2000 or (index == 414) and 1550 or 1100
 
-		elseif projectile_case == 2 then -- LooseCannon
-			return 1453.9, 0.7, offset_vectors[1], 200, 0.5
+			elseif id == 109 then
+				vecOffset.y, vecOffset.z = 6, -3;
 
-		elseif projectile_case == 3 then -- LochnLoad
-			return 1500, 0.5, offset_vectors[1], 200, 0.225
+			else
+				velForward = 1200;
 
-		elseif projectile_case == 4 then -- CrusadersCrossbow
-			return 2400, 0.1, offset_vectors[2], 0, 0
+			end
+			
+			return vecOffset, velForward, 0, vecThisMaxs, 0
 
-		elseif projectile_case == 5 then -- FlareGun
-			return 2000, 0.15, offset_vectors[3], 0, 0
-
-		elseif projectile_case == 6 then -- SyringeGun
-			return 1000, 0.15, offset_vectors[4], 0, 0
-
-		elseif projectile_case == 7 then -- Huntsman
-			return 1800 + clamp(m_flChargeBeginTime, 0, 1) * 800, 0.2 - clamp(m_flChargeBeginTime, 0, 1) * 0.15, offset_vectors[2], 0, 0
-
-		elseif projectile_case == 8 then -- StickyBomb
-			return 900 + clamp(m_flChargeBeginTime / 4, 0, 1) * 1500, 0.5, offset_vectors[1], 200, 0.275
-
-		elseif projectile_case == 9 then -- QuickieBomb
-			return 900 + clamp(m_flChargeBeginTime / 1.2, 0, 1) * 1500, 0.5, offset_vectors[1], 200, 0.275
-		end
-
-		-- fuck it, error case
-		return 0, 0, Vector3(0, 0, 0), 0, 0
-	end
-end)()
-
-
-local CalculateNewPosition = (function()
-	local exp = math.exp;
-	local Scalar = 0;
-	local Change = Vector3(0, 0, 0);
-
-	
-
-	-- Im just going to assume everything is a ball, why you ask? fuck you, thats why.
-	return function(initPosition, initVelocity, Gravity, Drag, Time)
-		Scalar = (Drag == 0) and Time or ((1 - exp(-Drag * Time)) / Drag);
-
-		Change.x = initVelocity.x * Scalar;
-		Change.y = initVelocity.y * Scalar;
-		Change.z = (initVelocity.z - Gravity * Time) * Scalar
-
-		return initPosition + Change;
-	end
-end)()
-
-
-
-callbacks.Register("CreateMove", function(cmd)
-	pLocal = entities.GetLocalPlayer();
-	if not pLocal then projectile_line_cords, projectile_impact_cords = {}, {}; return end
-	
-	pWeapon = pLocal:GetPropEntity("m_hActiveWeapon");
-	if not pWeapon then projectile_line_cords, projectile_impact_cords = {}, {}; return end
-	if not pWeapon:GetWeaponProjectileType() then projectile_line_cords, projectile_impact_cords = {}, {}; return end
-
-	local projSpeed, projGravity, projOffset, projUpVelocity, projDrag = GetProjectileWeaponInfo(pWeapon);
-	if projSpeed == 0 then projectile_line_cords, projectile_impact_cords = {}, {}; return end
-
-	
-
-	delta_time = globals.TickInterval();
-
-	local aimAngle = engine.GetViewAngles();
-	local initPosition = pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]") + (pLocal:EstimateAbsVelocity() * delta_time) + (aimAngle:Forward() * projOffset.x) + (aimAngle:Right() * projOffset.y * (pWeapon:IsViewModelFlipped() and -1 or 1)) + (aimAngle:Up() * projOffset.z);
-	local initVelocity = aimAngle:Forward() * projSpeed + aimAngle:Up() * projUpVelocity;
-	local Gravity = 800 * projGravity;
-	local position = initPosition;
-	local results = nil;
-
-
-
-	projectile_line_cords = {position};
-	for i = delta_time, 5, delta_time * 5 do
-		results = TraceHullProjectile(position, CalculateNewPosition(initPosition, initVelocity, Gravity, projDrag, i));
+		elseif case == 1 then -- StickyBomb
+			return vecOffsets[1], 900 + clamp(m_flChargeBeginTime / 4, 0, 1) * 1500, 200, vecMaxs[3], 0
 		
-		position = results.endpos;
-		table.insert(projectile_line_cords, position)
+		elseif case == 2 then -- QuickieBomb
+			return vecOffsets[1], 900 + clamp(m_flChargeBeginTime / 1.2, 0, 1) * 1500, 200, vecMaxs[3], 0
 
-		if results.fraction ~= 1 then
-			break
+		elseif case == 3 then -- ScottishResistance, StickyJumper
+			return vecOffsets[1], 900 + clamp(m_flChargeBeginTime / 4, 0, 1) * 1500, 200, vecMaxs[3], 0
+
+		elseif case == 4 then -- TheIronBomber
+			return vecOffsets[1], 1200, 200, vecMaxs[3], 400, 0.45
+
+		elseif case == 5 then -- GrenadeLauncher, LochnLoad
+			return vecOffsets[1], (index == 308) and 1500 or 1200, 200, vecMaxs[3], 400, (index == 308) and 0.225 or 0.45
+
+		elseif case == 6 then -- LooseCannon
+			return vecOffsets[1], 1440, 200, vecMaxs[3], 560, 0.5
+		
+		elseif case == 7 then -- Huntsman
+			return vecOffsets[2], 1800 + clamp(m_flChargeBeginTime, 0, 1) * 800, 0, vecMaxs[2], 200 - clamp(m_flChargeBeginTime, 0, 1) * 160
+
+		elseif case == 8 then -- FlareGuns
+			return Vector3(23.5, 12, is_ducking and 8 or -3), 2000, 0, vecMaxs[1], 120
+
+		elseif case == 9 then -- CrusadersCrossbow, RescueRanger
+			return vecOffsets[2], 2400, 0, (index == 997) and vecMaxs[2] or vecMaxs[4], 80
+
+		elseif case == 10 then -- SyringeGuns
+			return vecOffsets[4], 1000, 0, vecMaxs[2], 120
+
 		end
+	end
+end)();
+
+local TraceHull = engine.TraceHull;
+local exp = math.exp;
+local vecNewPosition = Vector3(0, 0, 0);
+callbacks.Register("CreateMove", function(cmd)
+	vecLineCords, vecImpactCords = {}, {};
+
+	local pLocal = entities.GetLocalPlayer();
+	if not pLocal or pLocal:InCond(7) then return end
+	
+	local pWeapon = pLocal:GetPropEntity("m_hActiveWeapon");
+	if not pWeapon or (pWeapon:GetWeaponProjectileType() or 0) < 2 then return end
+
+
+	local m_iItemDefinitionIndex = pWeapon:GetPropInt("m_iItemDefinitionIndex");
+	local caseItemDefinition = ItemDefinitions[m_iItemDefinitionIndex] or 0;
+	if caseItemDefinition == 0 then return end
+
+	local vecOffset, velForward, velUpward, vecMaxs, Gravity, Drag = GetProjectileInformation(pWeapon, (pLocal:GetPropInt("m_fFlags") & FL_DUCKING) == 2, caseItemDefinition, m_iItemDefinitionIndex, pWeapon:GetWeaponID())
+	local vecPosition, angForward = pWeapon:GetProjectileFireSetup(pLocal, vecOffset, false, 2000);
+	angForward = engine.GetViewAngles(); -- fix for bow
+
+	local vecVelocity = (angForward:Forward() * velForward) + (angForward:Up() * velUpward);
+	local vecMins = -vecMaxs;
+
+	-- Ghetto way of making sure our projectile isnt spawning in a wall
+	local results = TraceHull(pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), vecPosition, vecMins, vecMaxs, MASK_SHOT_HULL);
+	if results.fraction ~= 1 then return end
+
+
+	if velForward == 0 then
+		vecVelocity = angForward:Forward() * 1000;
+
+	elseif caseItemDefinition == -1 or caseItemDefinition >= 7 then	
+		local len = (engine.TraceLine(results.startpos, results.startpos + vecVelocity, MASK_SHOT_HULL)).fraction;;
+		if len <= 0.1 then len = 1; end
+		
+		vecVelocity = vecVelocity - (angForward:Right() * (vecOffset.y / len * (pWeapon:IsViewModelFlipped() and -1 or 1))) - (angForward:Up() * (vecOffset.z / len));
 	end
 
 
+	vecLineCords[1] = vecPosition;
 
-	if results then
-		local plane = results.plane;
-		local origin = results.endpos;
 
-		if plane.z >= 0.99 then
-			projectile_impact_cords = {
-				origin + Vector3(7.0710678100586, 7.0710678100586, 0),
-				origin + Vector3(7.0710678100586, -7.0710678100586, 0),
-				origin + Vector3(-7.0710678100586, -7.0710678100586, 0),
-				origin + Vector3(-7.0710678100586, 7.0710678100586, 0)
-			};
+	-- this shit just moves in a straight line, im not going to simulate it...
+	if caseItemDefinition == -1 then
+		results = TraceHull(vecPosition, vecPosition + (vecVelocity * 10), vecMins, vecMaxs, MASK_SHOT_HULL);
 
-			return
+		if results.startsolid then return end
+		
+		vecLineCords[2] = results.endpos;
 
-		elseif plane.z <= -0.99 then
-			projectile_impact_cords = {
-				origin + Vector3(-7.0710678100586, 7.0710678100586, 0),
-				origin + Vector3(-7.0710678100586, -7.0710678100586, 0),
-				origin + Vector3(7.0710678100586, -7.0710678100586, 0),
-				origin + Vector3(7.0710678100586, 7.0710678100586, 0)
-			};
+	elseif caseItemDefinition > 3 then
+		
+		local numPoints = 1;
+		for i = 0.01515, 5, 0.04545 do
+			local timeScalar = (not Drag) and i or ((1 - exp(-Drag * i)) / Drag);
 
-			return
+			vecNewPosition.x = vecVelocity.x * timeScalar + vecPosition.x;
+			vecNewPosition.y = vecVelocity.y * timeScalar + vecPosition.y;
+			vecNewPosition.z = (vecVelocity.z - Gravity * i) * timeScalar + vecPosition.z;
+
+			results = TraceHull(results.endpos, vecNewPosition, vecMins, vecMaxs, MASK_SHOT_HULL);
+
+			numPoints = numPoints + 1;
+			vecLineCords[numPoints] = results.endpos;
+
+			if results.fraction ~= 1 then break end
 		end
-
-		local right = Vector3(-plane.y, plane.x, 0);
-		local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
-
-		local radius = 10 / math.cos(math.asin(plane.z))
-
-		for i = 1, 4 do
-			local ang = i * math.pi / 2 + 0.785398163;
-			projectile_impact_cords[i] = origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang)));
-		end
-	
+		
 	else
-		projectile_impact_cords = {};
+		local simulatedObject = GetPhysicsObject(caseItemDefinition);
 
+		simulatedObject:SetPosition(results.endpos, angForward, true)
+		simulatedObject:SetVelocity(vecVelocity, Vector3(0, 0, 0))
+
+		for i = 2, 330 do
+			results = TraceHull(results.endpos, simulatedObject:GetPosition(), vecMins, vecMaxs, MASK_SHOT_HULL);
+
+			vecLineCords[i] = results.endpos;
+
+			if results.fraction ~= 1 then break end
+
+			physicsEnvironment:Simulate(0.04545)
+		end
+
+		physicsEnvironment:ResetSimulationClock()
+	end
+
+	if not results or not config.square.enabled then return end
+
+	local plane, origin = results.plane, results.endpos;
+	if math.abs(plane.z) >= 0.99 then
+		vecImpactCords = {
+			origin + Vector3(7.0710678100586, 7.0710678100586, 0),
+			origin + Vector3(7.0710678100586, -7.0710678100586, 0),
+			origin + Vector3(-7.0710678100586, -7.0710678100586, 0),
+			origin + Vector3(-7.0710678100586, 7.0710678100586, 0)
+		};
+
+		return
+	end
+
+	local right = Vector3(-plane.y, plane.x, 0);
+	local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
+
+	local radius = 10 / math.cos(math.asin(plane.z))
+
+	for i = 1, 4 do
+		local ang = i * math.pi / 2 + 0.785398163;
+		vecImpactCords[i] = origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang)));
 	end
 end)
 
 
 
+local drawLine, WorldToScreen = draw.Line, client.WorldToScreen;
 callbacks.Register("Draw", function()
-	local wts = client.WorldToScreen;
-	local sizeof = #projectile_line_cords;
+	local pLocal = entities.GetLocalPlayer();
+	if not pLocal or not pLocal:IsAlive() then return end
+
+	local sizeof = #vecLineCords;
 	local lastScreenPos = nil;
 
-
-	if sizeof == 0 then
-		return
-	end
+	if sizeof == 0 then return end
 
 	
 	-- Little square
-	if #projectile_impact_cords ~= 0 then
+	if #vecImpactCords ~= 0 then
 		local positions = {};
 		local is_error = false;
 
 		for i = 1, 4 do
-			positions[i] = wts(projectile_impact_cords[i]);
+			positions[i] = WorldToScreen(vecImpactCords[i]);
 			
 			if not positions[i] then
 				is_error = true;
@@ -288,15 +455,15 @@ callbacks.Register("Draw", function()
 		end
 		
 		if not is_error then
-			SetRainbowColor()
+			draw.Color(config.square.r, config.square.g, config.square.b, 255)
 			drawPolygon(positions)
 
 
 			lastScreenPos = positions[4];
 			for i = 1, 4 do
-				local newScreenPos = wts(projectile_impact_cords[i]);
+				local newScreenPos = WorldToScreen(vecImpactCords[i]);
 
-				draw.Line(lastScreenPos[1], lastScreenPos[2], newScreenPos[1], newScreenPos[2])
+				drawLine(lastScreenPos[1], lastScreenPos[2], newScreenPos[1], newScreenPos[2])
 
 				lastScreenPos = newScreenPos;
 			end
@@ -305,19 +472,17 @@ callbacks.Register("Draw", function()
 	
 
 
-	if sizeof == 1 then
-		return
-	end
+	if sizeof == 1 or not config.line.enabled then return end
 
 
 	-- Line
-	lastScreenPos = wts(projectile_line_cords[1]);
-	draw.Color(255, 255, 255, 255)
+	lastScreenPos = WorldToScreen(vecLineCords[1]);
+	draw.Color(config.line.r, config.line.g, config.line.b, config.line.a)
 	for i = 2, sizeof do
-		local newScreenPos = wts(projectile_line_cords[i]);
+		local newScreenPos = WorldToScreen(vecLineCords[i]);
 
 		if newScreenPos and lastScreenPos then
-			draw.Line(lastScreenPos[1], lastScreenPos[2], newScreenPos[1], newScreenPos[2])
+			drawLine(lastScreenPos[1], lastScreenPos[2], newScreenPos[1], newScreenPos[2])
 		end
 
 		lastScreenPos = newScreenPos;
@@ -327,5 +492,10 @@ end)
 
 
 callbacks.Register("Unload", function()
+	for _, object in pairs(physicsObjects) do
+		physicsEnvironment:DestroyObject(object)
+	end
+	physics.DestroyEnvironment(physicsEnvironment)
+
 	draw.DeleteTexture(white_texture)
 end)
