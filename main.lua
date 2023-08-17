@@ -19,8 +19,6 @@ local config = {
 
 
 -- Boring shit ahead!
-local MASK_SHOT_HULL = CONTENTS_SOLID | CONTENTS_MOVEABLE | CONTENTS_MONSTER | CONTENTS_WINDOW | CONTENTS_DEBRIS | CONTENTS_GRATE;
-
 local ItemDefinitions = (function()
 	local definitions = {
 		[222]	= 0;		--Mad Milk										tf_weapon_jar_milk
@@ -338,7 +336,7 @@ callbacks.Register("CreateMove", function(cmd)
 	local vecMins = -vecMaxs;
 
 	-- Ghetto way of making sure our projectile isnt spawning in a wall
-	local results = TraceHull(pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), vecPosition, vecMins, vecMaxs, MASK_SHOT_HULL);
+	local results = TraceHull(pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), vecPosition, vecMins, vecMaxs, 100679691);
 	if results.fraction ~= 1 then return end
 
 
@@ -346,7 +344,7 @@ callbacks.Register("CreateMove", function(cmd)
 		vecVelocity = angForward:Forward() * 1000;
 
 	elseif caseItemDefinition == -1 or caseItemDefinition >= 7 then	
-		local len = (engine.TraceLine(results.startpos, results.startpos + vecVelocity, MASK_SHOT_HULL)).fraction;;
+		local len = (engine.TraceLine(results.startpos, results.startpos + vecVelocity, 100679691)).fraction;;
 		if len <= 0.1 then len = 1; end
 		
 		vecVelocity = vecVelocity - (angForward:Right() * (vecOffset.y / len * (pWeapon:IsViewModelFlipped() and -1 or 1))) - (angForward:Up() * (vecOffset.z / len));
@@ -358,7 +356,7 @@ callbacks.Register("CreateMove", function(cmd)
 
 	-- this shit just moves in a straight line, im not going to simulate it...
 	if caseItemDefinition == -1 then
-		results = TraceHull(vecPosition, vecPosition + (vecVelocity * 10), vecMins, vecMaxs, MASK_SHOT_HULL);
+		results = TraceHull(vecPosition, vecPosition + (vecVelocity * 10), vecMins, vecMaxs, 100679691);
 
 		if results.startsolid then return end
 		
@@ -374,7 +372,7 @@ callbacks.Register("CreateMove", function(cmd)
 			vecNewPosition.y = vecVelocity.y * timeScalar + vecPosition.y;
 			vecNewPosition.z = (vecVelocity.z - Gravity * i) * timeScalar + vecPosition.z;
 
-			results = TraceHull(results.endpos, vecNewPosition, vecMins, vecMaxs, MASK_SHOT_HULL);
+			results = TraceHull(results.endpos, vecNewPosition, vecMins, vecMaxs, 100679691);
 
 			numPoints = numPoints + 1;
 			vecLineCords[numPoints] = results.endpos;
@@ -389,7 +387,7 @@ callbacks.Register("CreateMove", function(cmd)
 		simulatedObject:SetVelocity(vecVelocity, Vector3(0, 0, 0))
 
 		for i = 2, 330 do
-			results = TraceHull(results.endpos, simulatedObject:GetPosition(), vecMins, vecMaxs, MASK_SHOT_HULL);
+			results = TraceHull(results.endpos, simulatedObject:GetPosition(), vecMins, vecMaxs, 100679691);
 
 			vecLineCords[i] = results.endpos;
 
