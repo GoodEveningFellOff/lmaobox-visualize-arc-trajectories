@@ -1,9 +1,9 @@
 local config = {
 	square = {
 		enabled = true;
-		r = 55;
-		g = 255;
-		b = 155;
+		r = 255;
+		g = 155;
+		b = 55;
 		a = 50;
 	};
 	
@@ -12,8 +12,11 @@ local config = {
 		r = 255;
 		g = 255;
 		b = 255;
-		a = 100;
+		a = 55;
 	};
+
+	-- 0.5 to 8, determines the size of the segments traced, lower values = worse performance (default 2.5)
+	measure_segment_size = 2.5;
 };
 
 
@@ -21,13 +24,10 @@ local config = {
 -- Boring shit ahead!
 local ItemDefinitions = (function()
 	local definitions = {
-		[222]	= 0;		--Mad Milk										tf_weapon_jar_milk
-		[812]	= 0;		--The Flying Guillotine							tf_weapon_cleaver
-		[833]	= 0;		--The Flying Guillotine (Genuine)				tf_weapon_cleaver
-		[1121]	= 0;		--Mutated Milk									tf_weapon_jar_milk
-
-		[44]	= 0;		--The Sandman									tf_weapon_bat_wood
-		[648]	= 0;		--The Wrap Assassin								tf_weapon_bat_giftwrap
+		[222]	= 11;		--Mad Milk										tf_weapon_jar_milk
+		[812]	= 12;		--The Flying Guillotine							tf_weapon_cleaver
+		[833]	= 12;		--The Flying Guillotine (Genuine)				tf_weapon_cleaver
+		[1121]	= 11;		--Mutated Milk									tf_weapon_jar_milk
 
 		[18]	= -1;		--Rocket Launcher								tf_weapon_rocketlauncher
 		[205]	= -1;		--Rocket Launcher (Renamed/Strange)				tf_weapon_rocketlauncher
@@ -115,14 +115,6 @@ local ItemDefinitions = (function()
 		[15138]	= 1;		--Dressed to Kill								tf_weapon_pipebomblauncher
 		[15155]	= 1;		--Blitzkrieg									tf_weapon_pipebomblauncher
 
-		[42]	= 0;		--Sandvich										tf_weapon_lunchbox
-		[159]	= 0;		--The Dalokohs Bar								tf_weapon_lunchbox
-		[311]	= 0;		--The Buffalo Steak Sandvich					tf_weapon_lunchbox
-		[433] 	= 0;		--Fishcake										tf_weapon_lunchbox
-		[863]	= 0;		--Robo-Sandvich									tf_weapon_lunchbox
-		[1002]	= 0;		--Festive Sandvich								tf_weapon_lunchbox
-		[1190]	= 0;		--Second Banana									tf_weapon_lunchbox
-
 		[588]	= -1;		--The Pomson 6000								tf_weapon_drg_pomson
 		[997]	= 9;		--The Rescue Ranger								tf_weapon_shotgun_building_rescue
 
@@ -137,9 +129,9 @@ local ItemDefinitions = (function()
 		[1005]	= 7;		--Festive Huntsman								tf_weapon_compound_bow
 		[1092]	= 7;		--The Fortified Compound						tf_weapon_compound_bow
 
-		[58]	= 0;		--Jarate										tf_weapon_jar
-		[1083]	= 0;		--Festive Jarate								tf_weapon_jar
-		[1105]	= 0;		--The Self-Aware Beauty Mark					tf_weapon_jar
+		[58]	= 11;		--Jarate										tf_weapon_jar
+		[1083]	= 11;		--Festive Jarate								tf_weapon_jar
+		[1105]	= 11;		--The Self-Aware Beauty Mark					tf_weapon_jar
 	};
 
 	local definitions_fast = {};
@@ -167,26 +159,10 @@ physicsEnvironment:SetAirDensity( 2.0 )
 physicsEnvironment:SetSimulationTimestep(1/66)
 
 
-local physicsObjects = (function()
-	local tbl = {};
-
-	local function new(path)
-		local solid, collisionModel = physics.ParseModelByName(path);
-		tbl[#tbl + 1] = physicsEnvironment:CreatePolyObject(collisionModel, solid:GetSurfacePropName(), solid:GetObjectParameters());
-	end
-																							--Grouped together when they have same solid object parameters
-
-	new("models/weapons/w_models/w_stickybomb.mdl")											--Stickybomb
-	new("models/workshop/weapons/c_models/c_kingmaker_sticky/w_kingmaker_stickybomb.mdl")	--QuickieBomb
-	new("models/weapons/w_models/w_stickybomb_d.mdl")										--ScottishResistance, StickyJumper
-						
-	return tbl
-end)();
+local physicsObjects = {};
 
 local GetPhysicsObject = (function()
 	local caseLast = 1;
-
-	physicsObjects[1]:Wake()
 
 	return function(case)
 		if case ~= caseLast then
@@ -306,6 +282,12 @@ local GetProjectileInformation = (function()
 
 		elseif case == 10 then -- SyringeGuns
 			return vecOffsets[4], 1000, 0, vecMaxs[2], 120
+		
+		elseif case == 11 then -- Jarate, MadMilk
+			return Vector3(23.5, 8, -3), 1000, 200, vecMaxs[4], 450
+
+		elseif case == 12 then -- FlyingGuillotine
+			return  Vector3(23.5, 8, -3), 3000, 300, vecMaxs[3], 900, 1.3
 
 		end
 	end
@@ -313,115 +295,143 @@ end)();
 
 local TraceHull = engine.TraceHull;
 local exp = math.exp;
+local interval = clamp(config.measure_segment_size, 0.5, 8) / 66;
 local vecNewPosition = Vector3(0, 0, 0);
-callbacks.Register("CreateMove", function(cmd)
-	vecLineCords, vecImpactCords = {}, {};
+callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
+	callbacks.Unregister("CreateMove", "LoadPhysicsObjects")
 
-	local pLocal = entities.GetLocalPlayer();
-	if not pLocal or pLocal:InCond(7) then return end
-	
-	local pWeapon = pLocal:GetPropEntity("m_hActiveWeapon");
-	if not pWeapon or (pWeapon:GetWeaponProjectileType() or 0) < 2 then return end
-
-
-	local m_iItemDefinitionIndex = pWeapon:GetPropInt("m_iItemDefinitionIndex");
-	local caseItemDefinition = ItemDefinitions[m_iItemDefinitionIndex] or 0;
-	if caseItemDefinition == 0 then return end
-
-	local vecOffset, velForward, velUpward, vecMaxs, Gravity, Drag = GetProjectileInformation(pWeapon, (pLocal:GetPropInt("m_fFlags") & FL_DUCKING) == 2, caseItemDefinition, m_iItemDefinitionIndex, pWeapon:GetWeaponID())
-	local vecPosition, angForward = pWeapon:GetProjectileFireSetup(pLocal, vecOffset, false, 2000);
-	angForward = engine.GetViewAngles(); -- fix for bow
-
-	local vecVelocity = (angForward:Forward() * velForward) + (angForward:Up() * velUpward);
-	local vecMins = -vecMaxs;
-
-	-- Ghetto way of making sure our projectile isnt spawning in a wall
-	local results = TraceHull(pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), vecPosition, vecMins, vecMaxs, 100679691);
-	if results.fraction ~= 1 then return end
-
-
-	if velForward == 0 then
-		vecVelocity = angForward:Forward() * 1000;
-
-	elseif caseItemDefinition == -1 or caseItemDefinition >= 7 then	
-		local len = (engine.TraceLine(results.startpos, results.startpos + vecVelocity, 100679691)).fraction;;
-		if len <= 0.1 then len = 1; end
-		
-		vecVelocity = vecVelocity - (angForward:Right() * (vecOffset.y / len * (pWeapon:IsViewModelFlipped() and -1 or 1))) - (angForward:Up() * (vecOffset.z / len));
-	end
-
-
-	vecLineCords[1] = vecPosition;
-
-
-	-- this shit just moves in a straight line, im not going to simulate it...
-	if caseItemDefinition == -1 then
-		results = TraceHull(vecPosition, vecPosition + (vecVelocity * 10), vecMins, vecMaxs, 100679691);
-
-		if results.startsolid then return end
-		
-		vecLineCords[2] = results.endpos;
-
-	elseif caseItemDefinition > 3 then
-		
-		local numPoints = 1;
-		for i = 0.01515, 5, 0.04545 do
-			local timeScalar = (not Drag) and i or ((1 - exp(-Drag * i)) / Drag);
-
-			vecNewPosition.x = vecVelocity.x * timeScalar + vecPosition.x;
-			vecNewPosition.y = vecVelocity.y * timeScalar + vecPosition.y;
-			vecNewPosition.z = (vecVelocity.z - Gravity * i) * timeScalar + vecPosition.z;
-
-			results = TraceHull(results.endpos, vecNewPosition, vecMins, vecMaxs, 100679691);
-
-			numPoints = numPoints + 1;
-			vecLineCords[numPoints] = results.endpos;
-
-			if results.fraction ~= 1 then break end
-		end
-		
-	else
-		local simulatedObject = GetPhysicsObject(caseItemDefinition);
-
-		simulatedObject:SetPosition(results.endpos, angForward, true)
-		simulatedObject:SetVelocity(vecVelocity, Vector3(0, 0, 0))
-
-		for i = 2, 330 do
-			results = TraceHull(results.endpos, simulatedObject:GetPosition(), vecMins, vecMaxs, 100679691);
-
-			vecLineCords[i] = results.endpos;
-
-			if results.fraction ~= 1 then break end
-
-			physicsEnvironment:Simulate(0.04545)
-		end
-
-		physicsEnvironment:ResetSimulationClock()
-	end
-
-	if not results or not config.square.enabled then return end
-
-	local plane, origin = results.plane, results.endpos;
-	if math.abs(plane.z) >= 0.99 then
-		vecImpactCords = {
-			origin + Vector3(7.0710678100586, 7.0710678100586, 0),
-			origin + Vector3(7.0710678100586, -7.0710678100586, 0),
-			origin + Vector3(-7.0710678100586, -7.0710678100586, 0),
-			origin + Vector3(-7.0710678100586, 7.0710678100586, 0)
-		};
-
+	if #physicsObjects > 0 then
+		print("Holy shit its still alive... debug this! (304)")
 		return
 	end
 
-	local right = Vector3(-plane.y, plane.x, 0);
-	local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
+	physicsObjects = (function()
+		local tbl = {};
 
-	local radius = 10 / math.cos(math.asin(plane.z))
+		local function new(path)
+			local solid, collisionModel = physics.ParseModelByName(path);
+			tbl[#tbl + 1] = physicsEnvironment:CreatePolyObject(collisionModel, solid:GetSurfacePropName(), solid:GetObjectParameters());
+		end
+																								--Grouped together when they have same solid object parameters
 
-	for i = 1, 4 do
-		local ang = i * math.pi / 2 + 0.785398163;
-		vecImpactCords[i] = origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang)));
-	end
+		new("models/weapons/w_models/w_stickybomb.mdl")											--Stickybomb
+		new("models/workshop/weapons/c_models/c_kingmaker_sticky/w_kingmaker_stickybomb.mdl")	--QuickieBomb
+		new("models/weapons/w_models/w_stickybomb_d.mdl")										--ScottishResistance, StickyJumper
+		
+		tbl[1]:Wake()
+
+		return tbl
+	end)();
+	
+	callbacks.Register("CreateMove", function(cmd)
+		vecLineCords, vecImpactCords = {}, {};
+
+		local pLocal = entities.GetLocalPlayer();
+		if not pLocal or pLocal:InCond(7) then return end
+	
+		local pWeapon = pLocal:GetPropEntity("m_hActiveWeapon");
+		if not pWeapon or (pWeapon:GetWeaponProjectileType() or 0) < 2 then return end
+
+
+		local m_iItemDefinitionIndex = pWeapon:GetPropInt("m_iItemDefinitionIndex");
+		local caseItemDefinition = ItemDefinitions[m_iItemDefinitionIndex] or 0;
+		if caseItemDefinition == 0 then return end
+
+		local vecOffset, velForward, velUpward, vecMaxs, Gravity, Drag = GetProjectileInformation(pWeapon, (pLocal:GetPropInt("m_fFlags") & FL_DUCKING) == 2, caseItemDefinition, m_iItemDefinitionIndex, pWeapon:GetWeaponID())
+		local vecPosition, angForward = pWeapon:GetProjectileFireSetup(pLocal, vecOffset, false, 2000);
+		angForward = engine.GetViewAngles(); -- fix for bow
+
+		local vecVelocity = (angForward:Forward() * velForward) + (angForward:Up() * velUpward);
+		local vecMins = -vecMaxs;
+
+		-- Ghetto way of making sure our projectile isnt spawning in a wall
+		local results = TraceHull(pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), vecPosition, vecMins, vecMaxs, 100679691);
+		if results.fraction ~= 1 then return end
+
+
+		if velForward == 0 then
+			vecVelocity = angForward:Forward() * 1000;
+
+		elseif caseItemDefinition == -1 or (caseItemDefinition >= 7 and caseItemDefinition < 11) then	
+			local len = (engine.TraceLine(results.startpos, results.startpos + vecVelocity, 100679691)).fraction;
+			if len <= 0.1 then len = 1; end
+		
+			vecVelocity = vecVelocity - (angForward:Right() * (vecOffset.y / len * (pWeapon:IsViewModelFlipped() and -1 or 1))) - (angForward:Up() * (vecOffset.z / len));
+		end
+
+
+		vecLineCords[1] = vecPosition;
+
+
+		-- this shit just moves in a straight line, im not going to simulate it...
+		if caseItemDefinition == -1 then
+			results = TraceHull(vecPosition, vecPosition + (vecVelocity * 10), vecMins, vecMaxs, 100679691);
+
+			if results.startsolid then return end
+		
+			vecLineCords[2] = results.endpos;
+
+		elseif caseItemDefinition > 3 then
+		
+			local numPoints = 1;
+			for i = 0.01515, 5, interval do
+				local timeScalar = (not Drag) and i or ((1 - exp(-Drag * i)) / Drag);
+
+				vecNewPosition.x = vecVelocity.x * timeScalar + vecPosition.x;
+				vecNewPosition.y = vecVelocity.y * timeScalar + vecPosition.y;
+				vecNewPosition.z = (vecVelocity.z - Gravity * i) * timeScalar + vecPosition.z;
+
+				results = TraceHull(results.endpos, vecNewPosition, vecMins, vecMaxs, 100679691);
+
+				numPoints = numPoints + 1;
+				vecLineCords[numPoints] = results.endpos;
+
+				if results.fraction ~= 1 then break end
+			end
+		
+		else
+			local simulatedObject = GetPhysicsObject(caseItemDefinition);
+
+			simulatedObject:SetPosition(results.endpos, angForward, true)
+			simulatedObject:SetVelocity(vecVelocity, Vector3(0, 0, 0))
+
+			for i = 2, 330 do
+				results = TraceHull(results.endpos, simulatedObject:GetPosition(), vecMins, vecMaxs, 100679691);
+
+				vecLineCords[i] = results.endpos;
+
+				if results.fraction ~= 1 then break end
+
+				physicsEnvironment:Simulate(interval)
+			end
+
+			physicsEnvironment:ResetSimulationClock()
+		end
+
+		if not results or not config.square.enabled then return end
+
+		local plane, origin = results.plane, results.endpos;
+		if math.abs(plane.z) >= 0.99 then
+			vecImpactCords = {
+				origin + Vector3(7.0710678100586, 7.0710678100586, 0),
+				origin + Vector3(7.0710678100586, -7.0710678100586, 0),
+				origin + Vector3(-7.0710678100586, -7.0710678100586, 0),
+				origin + Vector3(-7.0710678100586, 7.0710678100586, 0)
+			};
+
+			return
+		end
+
+		local right = Vector3(-plane.y, plane.x, 0);
+		local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
+
+		local radius = 10 / math.cos(math.asin(plane.z))
+
+		for i = 1, 4 do
+			local ang = i * math.pi / 2 + 0.785398163;
+			vecImpactCords[i] = origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang)));
+		end
+	end)	
 end)
 
 
