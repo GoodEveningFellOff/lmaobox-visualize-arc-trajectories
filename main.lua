@@ -547,10 +547,10 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 			local plane, origin = results.plane, results.endpos;
 			if math.abs(plane.z) >= 0.99 then
 				vecImpactCords = {
-					origin + Vector3(7.0710678100586, 7.0710678100586, 0),
-					origin + Vector3(7.0710678100586, -7.0710678100586, 0),
-					origin + Vector3(-7.0710678100586, -7.0710678100586, 0),
-					origin + Vector3(-7.0710678100586, 7.0710678100586, 0)
+					origin + Vector3(squareFlatSize, squareFlatSize, 0),
+					origin + Vector3(squareFlatSize, -squareFlatSize, 0),
+					origin + Vector3(-squareFlatSize, -squareFlatSize, 0),
+					origin + Vector3(-squareFlatSize, squareFlatSize, 0)
 				};
 
 				return
@@ -559,7 +559,7 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 			local right = Vector3(-plane.y, plane.x, 0);
 			local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
 
-			local radius = 10 / math.cos(math.asin(plane.z))
+			local radius = config.square.size / math.cos(math.asin(plane.z))
 
 			for i = 1, 4 do
 				local ang = i * math.pi / 2 + 0.785398163;
