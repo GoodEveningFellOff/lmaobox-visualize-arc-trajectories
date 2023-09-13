@@ -343,33 +343,33 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 			local pWeapon = pLocal:GetPropEntity("m_hActiveWeapon");
 			if not pWeapon or (pWeapon:GetWeaponProjectileType() or 0) < 2 then return end
 
+			
 
 			local m_iItemDefinitionIndex = pWeapon:GetPropInt("m_iItemDefinitionIndex");
 			local caseItemDefinition = ItemDefinitions[m_iItemDefinitionIndex] or 0;
 			if caseItemDefinition == 0 then return end
 
-			local vecOffset, velForward, velUpward, vecMaxs, Gravity, Drag = GetProjectileInformation(pWeapon, (pLocal:GetPropInt("m_fFlags") & FL_DUCKING) == 2, caseItemDefinition, m_iItemDefinitionIndex, pWeapon:GetWeaponID())
-			local vecPosition, angForward = pWeapon:GetProjectileFireSetup(pLocal, vecOffset, false, 2000);
-			angForward = engine.GetViewAngles(); -- fix for bow
-
-			local vecVelocity = (angForward:Forward() * velForward) + (angForward:Up() * velUpward);
+			local vecOffset, velForward, velUpward, vecMaxs, Gravity, Drag = GetProjectileInformation(pWeapon, (pLocal:GetPropInt("m_fFlags") & FL_DUCKING) == 2, caseItemDefinition, m_iItemDefinitionIndex, pWeapon:GetWeaponID());
 			local vecMins = -vecMaxs;
-			local vecLeft = angForward:Right() * -config.line.flag_size;
+
+			local vecPosition, angForward = pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), engine.GetViewAngles();
 
 			-- Ghetto way of making sure our projectile isnt spawning in a wall
-			local results = TraceHull(pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), vecPosition, vecMins, vecMaxs, 100679691);
+			local results = TraceHull(vecPosition, vecPosition + (angForward:Forward() * vecOffset.x) + (angForward:Right() * (vecOffset.y * (pWeapon:IsViewModelFlipped() and -1 or 1))) + (angForward:Up() * vecOffset.z), vecMins, vecMaxs, 100679691);
 			if results.fraction ~= 1 then return end
 
+			vecPosition = results.endpos;
 
-			if velForward == 0 then
-				vecVelocity = angForward:Forward() * 1000;
-
-			elseif caseItemDefinition == -1 or (caseItemDefinition >= 7 and caseItemDefinition < 11) then	
-				local len = (engine.TraceLine(results.startpos, results.startpos + vecVelocity, 100679691)).fraction;
-				if len <= 0.1 then len = 1; end
-		
-				vecVelocity = vecVelocity - (angForward:Right() * (vecOffset.y / len * (pWeapon:IsViewModelFlipped() and -1 or 1))) - (angForward:Up() * (vecOffset.z / len));
+			-- Fix for weapons that attempt to center the projectile shot based on how far whatever the player is looking at.
+			if caseItemDefinition == -1 or (caseItemDefinition >= 7 and caseItemDefinition < 11) and velForward ~= 0 then
+				local traceResult = engine.TraceLine(results.startpos, results.startpos + (angForward:Forward() * 2000), 100679691);
+				angForward = (((traceResult.fraction <= 0.1) and (results.startpos + (angForward:Forward() * 2000)) or traceResult.endpos) - vecPosition):Angles();
 			end
+			
+			-- Our velocity must be in the corrected direction
+			local vecVelocity = (angForward:Forward() * velForward) + (angForward:Up() * velUpward);
+			local vecLeft = angForward:Right() * -config.line.flag_size;
+
 
 
 			vecLineCords[1] = vecPosition;
@@ -377,12 +377,12 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 
 			-- this shit just moves in a straight line, im not going to simulate it...
 			if caseItemDefinition == -1 then
-				results = TraceHull(vecPosition, vecPosition + (vecVelocity * 10), vecMins, vecMaxs, 100679691);
+				results = TraceHull(vecPosition, vecPosition + (angForward:Forward() * 10000), vecMins, vecMaxs, 100679691);
 
 				if results.startsolid then return end
 				
 				local numLines = math.floor((results.endpos - results.startpos):Length() / numFallbackFlagDist);
-				local vecVelForward = vecVelocity / (vecVelocity:Length());
+				local vecVelForward = angForward:Forward();
 				
 				for i = 1, numLines do
 					vecLineCords[i + 1] = vecVelForward * (i * numFallbackFlagDist) + vecPosition;
@@ -467,35 +467,34 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 			if not pWeapon or (pWeapon:GetWeaponProjectileType() or 0) < 2 then return end
 
 
+
 			local m_iItemDefinitionIndex = pWeapon:GetPropInt("m_iItemDefinitionIndex");
 			local caseItemDefinition = ItemDefinitions[m_iItemDefinitionIndex] or 0;
 			if caseItemDefinition == 0 then return end
 
-			local vecOffset, velForward, velUpward, vecMaxs, Gravity, Drag = GetProjectileInformation(pWeapon, (pLocal:GetPropInt("m_fFlags") & FL_DUCKING) == 2, caseItemDefinition, m_iItemDefinitionIndex, pWeapon:GetWeaponID())
-			local vecPosition, angForward = pWeapon:GetProjectileFireSetup(pLocal, vecOffset, false, 2000);
-			angForward = engine.GetViewAngles(); -- fix for bow
-
-			local vecVelocity = (angForward:Forward() * velForward) + (angForward:Up() * velUpward);
+			local vecOffset, velForward, velUpward, vecMaxs, Gravity, Drag = GetProjectileInformation(pWeapon, (pLocal:GetPropInt("m_fFlags") & FL_DUCKING) == 2, caseItemDefinition, m_iItemDefinitionIndex, pWeapon:GetWeaponID());
 			local vecMins = -vecMaxs;
 
+			local vecPosition, angForward = pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), engine.GetViewAngles();
+
 			-- Ghetto way of making sure our projectile isnt spawning in a wall
-			local results = TraceHull(pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]"), vecPosition, vecMins, vecMaxs, 100679691);
+			local results = TraceHull(vecPosition, vecPosition + (angForward:Forward() * vecOffset.x) + (angForward:Right() * (vecOffset.y * (pWeapon:IsViewModelFlipped() and -1 or 1))) + (angForward:Up() * vecOffset.z), vecMins, vecMaxs, 100679691);
 			if results.fraction ~= 1 then return end
 
+			vecPosition = results.endpos;
 
-			if velForward == 0 then
-				vecVelocity = angForward:Forward() * 1000;
-
-			elseif caseItemDefinition == -1 or (caseItemDefinition >= 7 and caseItemDefinition < 11) then	
-				local len = (engine.TraceLine(results.startpos, results.startpos + vecVelocity, 100679691)).fraction;
-				if len <= 0.1 then len = 1; end
-		
-				vecVelocity = vecVelocity - (angForward:Right() * (vecOffset.y / len * (pWeapon:IsViewModelFlipped() and -1 or 1))) - (angForward:Up() * (vecOffset.z / len));
+			-- Fix for weapons that attempt to center the projectile shot based on how far whatever the player is looking at.
+			if caseItemDefinition == -1 or (caseItemDefinition >= 7 and caseItemDefinition < 11) and velForward ~= 0 then
+				local traceResult = engine.TraceLine(results.startpos, results.startpos + (angForward:Forward() * 2000), 100679691);
+				angForward = (((traceResult.fraction <= 0.1) and (results.startpos + (angForward:Forward() * 2000)) or traceResult.endpos) - vecPosition):Angles();
 			end
+			
+			-- Our velocity must be in the corrected direction
+			local vecVelocity = (angForward:Forward() * velForward) + (angForward:Up() * velUpward);
+
 
 
 			vecLineCords[1] = vecPosition;
-
 
 			-- this shit just moves in a straight line, im not going to simulate it...
 			if caseItemDefinition == -1 then
