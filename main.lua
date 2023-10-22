@@ -29,7 +29,8 @@ local config = {
 	};
 
 	outline = {
-		enabled = true;
+		line_and_flags = true;
+		polygon = true;
 		r = 0;
 		g = 0;
 		b = 0;
@@ -248,7 +249,7 @@ do
 	local iOutlineOffsetOuter = (config.flags.size < 1) and -1 or 1;
 
 	local metatable = {__call = nil;};
-	if config.outline.enabled then
+	if config.outline.line_and_flags then
 		if config.line.enabled and config.flags.enabled then
 			function metatable:__call()
 				local positions, offset, last = self.m_aPositions, self.m_vFlagOffset, nil;
@@ -414,63 +415,141 @@ do
 
 	local metatable = { __call = function(self, plane, origin) end; };
 	if config.polygon.enabled then
-		function metatable:__call(plane, origin)
-			local positions = {};
-			local radius = config.polygon.size;
 
-			if math.abs(plane.z) >= 0.99 then
-				for i = 1, iSegments do
-					local ang = i * fSegmentAngle + fSegmentAngleOffset;
-					positions[i] = WORLD2SCREEN(origin + Vector3(radius * math.cos(ang), radius * math.sin(ang), 0));
-					if not positions[i] then
-						return;
+		if config.outline.polygon then
+			function metatable:__call(plane, origin)
+				local positions = {};
+				local radius = config.polygon.size;
+
+				if math.abs(plane.z) >= 0.99 then
+					for i = 1, iSegments do
+						local ang = i * fSegmentAngle + fSegmentAngleOffset;
+						positions[i] = WORLD2SCREEN(origin + Vector3(radius * math.cos(ang), radius * math.sin(ang), 0));
+						if not positions[i] then
+							return;
+						end
 					end
-				end
 	
-			else
-				local right = Vector3(-plane.y, plane.x, 0);
-				local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
+				else
+					local right = Vector3(-plane.y, plane.x, 0);
+					local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
 
-				radius = radius / math.cos(math.asin(plane.z))
+					radius = radius / math.cos(math.asin(plane.z))
 
-				for i = 1, iSegments do
-					local ang = i * fSegmentAngle + fSegmentAngleOffset;
-					positions[i] = WORLD2SCREEN(origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang))));
+					for i = 1, iSegments do
+						local ang = i * fSegmentAngle + fSegmentAngleOffset;
+						positions[i] = WORLD2SCREEN(origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang))));
 
-					if not positions[i] then
-						return;
+						if not positions[i] then
+							return;
+						end
 					end
 				end
-			end
 
-			COLOR(config.polygon.r, config.polygon.g, config.polygon.b, 255);
+				COLOR(config.outline.r, config.outline.g, config.outline.b, config.outline.a);
+				local last = positions[#positions];
+				for i = 1, #positions do
+					local new = positions[i]
 
-			do
-				local cords, reverse_cords = {}, {};
-				local sizeof = #positions;
-				local sum = 0;
+					if math.abs(new[1] - last[1]) > math.abs(new[2] - last[2]) then
+						LINE(last[1], last[2] + 1, new[1], new[2] + 1);
+						LINE(last[1], last[2] - 1, new[1], new[2] - 1);
+					else
+						LINE(last[1] + 1, last[2], new[1] + 1, new[2]);
+						LINE(last[1] - 1, last[2], new[1] - 1, new[2]);
+					end
 
-				for i, pos in pairs(positions) do
-					local convertedTbl = {pos[1], pos[2], 0, 0};
 
-					cords[i], reverse_cords[sizeof - i + 1] = convertedTbl, convertedTbl;
-
-					sum = sum + CROSS(pos, positions[(i % sizeof) + 1], positions[1]);
+					last = new;
 				end
 
+				COLOR(config.polygon.r, config.polygon.g, config.polygon.b, 255);
+				do
+					local cords, reverse_cords = {}, {};
+					local sizeof = #positions;
+					local sum = 0;
 
-				POLYGON(self.m_iTexture, (sum < 0) and reverse_cords or cords, true)
-			end
+					for i, pos in pairs(positions) do
+						local convertedTbl = {pos[1], pos[2], 0, 0};
 
-			local last = positions[#positions];
-			for i = 1, #positions do
-				local new = positions[i];
+						cords[i], reverse_cords[sizeof - i + 1] = convertedTbl, convertedTbl;
+
+						sum = sum + CROSS(pos, positions[(i % sizeof) + 1], positions[1]);
+					end
+
+
+					POLYGON(self.m_iTexture, (sum < 0) and reverse_cords or cords, true)
+				end
+
+				local last = positions[#positions];
+				for i = 1, #positions do
+					local new = positions[i];
 				
-				LINE(last[1], last[2], new[1], new[2]);
+					LINE(last[1], last[2], new[1], new[2]);
 
-				last = new;
+					last = new;
+				end
+
 			end
 
+		else
+			function metatable:__call(plane, origin)
+				local positions = {};
+				local radius = config.polygon.size;
+
+				if math.abs(plane.z) >= 0.99 then
+					for i = 1, iSegments do
+						local ang = i * fSegmentAngle + fSegmentAngleOffset;
+						positions[i] = WORLD2SCREEN(origin + Vector3(radius * math.cos(ang), radius * math.sin(ang), 0));
+						if not positions[i] then
+							return;
+						end
+					end
+	
+				else
+					local right = Vector3(-plane.y, plane.x, 0);
+					local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
+
+					radius = radius / math.cos(math.asin(plane.z))
+
+					for i = 1, iSegments do
+						local ang = i * fSegmentAngle + fSegmentAngleOffset;
+						positions[i] = WORLD2SCREEN(origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang))));
+
+						if not positions[i] then
+							return;
+						end
+					end
+				end
+
+				COLOR(config.polygon.r, config.polygon.g, config.polygon.b, 255);
+				do
+					local cords, reverse_cords = {}, {};
+					local sizeof = #positions;
+					local sum = 0;
+
+					for i, pos in pairs(positions) do
+						local convertedTbl = {pos[1], pos[2], 0, 0};
+
+						cords[i], reverse_cords[sizeof - i + 1] = convertedTbl, convertedTbl;
+
+						sum = sum + CROSS(pos, positions[(i % sizeof) + 1], positions[1]);
+					end
+
+
+					POLYGON(self.m_iTexture, (sum < 0) and reverse_cords or cords, true)
+				end
+
+				local last = positions[#positions];
+				for i = 1, #positions do
+					local new = positions[i];
+				
+					LINE(last[1], last[2], new[1], new[2]);
+
+					last = new;
+				end
+
+			end
 		end
 	end
 
