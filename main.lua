@@ -1,12 +1,13 @@
 local config = {
-	square = {
-		enabled = true;
+	polygon = {
+		enabled = false;
 		r = 255;
 		g = 200;
 		b = 155;
 		a = 50;
 
 		size = 10;
+		segments = 20;
 	};
 	
 	line = {
@@ -14,7 +15,7 @@ local config = {
 		r = 255;
 		g = 255;
 		b = 255;
-		a = 155;
+		a = 255;
 	};
 
 	flags = {
@@ -22,9 +23,17 @@ local config = {
 		r = 255;
 		g = 0;
 		b = 0;
-		a = 155;
+		a = 255;
 
 		size = 5;
+	};
+
+	outline = {
+		enabled = true;
+		r = 0;
+		g = 0;
+		b = 0;
+		a = 155;
 	};
 
 	-- 0.5 to 8, determines the size of the segments traced, lower values = worse performance (default 2.5)
@@ -232,41 +241,84 @@ do
 		self.m_aPositions[self.m_iSize] = vec;
 	end
 
-	local fLineRed, fLineGreen, fLineBlue, fLineAlpha = config.line.r, config.line.g, config.line.b, config.line.a;
-	local fFlagRed, fFlagGreen, fFlagBlue, fFlagAlpha = config.flags.r, config.flags.g, config.flags.b, config.flags.a;
+	local iLineRed,    iLineGreen,    iLineBlue,    iLineAlpha    = config.line.r,    config.line.g,    config.line.b,    config.line.a;
+	local iFlagRed,    iFlagGreen,    iFlagBlue,    iFlagAlpha    = config.flags.r,   config.flags.g,   config.flags.b,   config.flags.a;
+	local iOutlineRed, iOutlineGreen, iOutlineBlue, iOutlineAlpha = config.outline.r, config.outline.g, config.outline.b, config.outline.a;
+	local iOutlineOffsetInner = (config.flags.size < 1) and -1 or 0;
+	local iOutlineOffsetOuter = (config.flags.size < 1) and -1 or 1;
 
 	local metatable = {__call = nil;};
-	if config.flags.enabled then
-		if not config.line.enabled then
-			function metatable:__call()
-				local positions, offset = self.m_aPositions, self.m_vFlagOffset;
-
-				COLOR(fFlagRed, fFlagGreen, fFlagBlue, fFlagAlpha);
-				for i = self.m_iSize, 1, -1 do
-					local this_pos = positions[i];
-					local new, newf = WORLD2SCREEN(this_pos), WORLD2SCREEN(this_pos + offset);
-				
-					if new and newf then
-						LINE(newf[1], newf[2], new[1], new[2]);
-					end
-				end
-			end
-
-		elseif fLineRed == fFlagRed and fLineGreen == fFlagGreen and fLineBlue == fFlagBlue and fLineAlpha == fFlagAlpha then
+	if config.outline.enabled then
+		if config.line.enabled and config.flags.enabled then
 			function metatable:__call()
 				local positions, offset, last = self.m_aPositions, self.m_vFlagOffset, nil;
-
-				COLOR(fLineRed, fLineGreen, fLineBlue, fLineAlpha);				
+				
+				COLOR(iOutlineRed, iOutlineGreen, iOutlineBlue, iOutlineAlpha);
 				for i = self.m_iSize, 1, -1 do
 					local this_pos = positions[i];
 					local new, newf = WORLD2SCREEN(this_pos), WORLD2SCREEN(this_pos + offset);
 				
 					if last and new then
+						if math.abs(last[1] - new[1]) > math.abs(last[2] - new[2]) then
+							LINE(last[1], last[2] - 1, new[1], new[2] - 1);
+							LINE(last[1], last[2] + 1, new[1], new[2] + 1);
+
+						else
+							LINE(last[1] - 1, last[2], new[1] - 1, new[2]);
+							LINE(last[1] + 1, last[2], new[1] + 1, new[2]);
+						end
+					end
+
+					if new and newf then
+						LINE(newf[1], newf[2] - 1, new[1], new[2] - 1);
+						LINE(newf[1], newf[2] + 1, new[1], new[2] + 1);
+						LINE(newf[1] - iOutlineOffsetOuter, newf[2] - 1, newf[1] - iOutlineOffsetOuter, newf[2] + 2);
+					end
+					
+					last = new;
+				end
+
+				last = nil;
+
+				for i = self.m_iSize, 1, -1 do
+					local this_pos = positions[i];
+					local new, newf = WORLD2SCREEN(this_pos), WORLD2SCREEN(this_pos + offset);
+				
+					if last and new then
+						COLOR(iLineRed, iLineGreen, iLineBlue, iLineAlpha);
 						LINE(last[1], last[2], new[1], new[2]);
 					end
 
 					if new and newf then
+						COLOR(iFlagRed, iFlagGreen, iFlagBlue, iFlagAlpha);
 						LINE(newf[1], newf[2], new[1], new[2]);
+					end
+					
+					last = new;
+				end
+			end
+
+		elseif config.line.enabled then
+			function metatable:__call()
+				local positions, offset, last = self.m_aPositions, self.m_vFlagOffset, nil;
+				
+				for i = self.m_iSize, 1, -1 do
+					local this_pos = positions[i];
+					local new = WORLD2SCREEN(this_pos);
+				
+					if last and new then
+						COLOR(iOutlineRed, iOutlineGreen, iOutlineBlue, iOutlineAlpha);
+						if math.abs(last[1] - new[1]) > math.abs(last[2] - new[2]) then
+							LINE(last[1], last[2] - 1, new[1], new[2] - 1);
+							LINE(last[1], last[2] + 1, new[1], new[2] + 1);
+
+						else
+							LINE(last[1] - 1, last[2], new[1] - 1, new[2]);
+							LINE(last[1] + 1, last[2], new[1] + 1, new[2]);
+						end
+
+						COLOR(iLineRed, iLineGreen, iLineBlue, iLineAlpha);
+						LINE(last[1], last[2], new[1], new[2]);
 					end
 					
 					last = new;
@@ -275,32 +327,53 @@ do
 
 		else
 			function metatable:__call()
-				local positions, offset, last = self.m_aPositions, self.m_vFlagOffset, nil;
+				local positions, offset = self.m_aPositions, self.m_vFlagOffset;
 				
 				for i = self.m_iSize, 1, -1 do
 					local this_pos = positions[i];
 					local new, newf = WORLD2SCREEN(this_pos), WORLD2SCREEN(this_pos + offset);
 				
-					if last and new then
-						COLOR(fLineRed, fLineGreen, fLineBlue, fLineAlpha);
-						LINE(last[1], last[2], new[1], new[2]);
-					end
-
 					if new and newf then
-						COLOR(fFlagRed, fFlagGreen, fFlagBlue, fFlagAlpha);
+						COLOR(iOutlineRed, iOutlineGreen, iOutlineBlue, iOutlineAlpha);
+						LINE(new[1] + iOutlineOffsetInner, new[2] - 1, new[1] + iOutlineOffsetInner, new[2] + 2);
+						LINE(newf[1], newf[2] - 1, new[1], new[2] - 1);
+						LINE(newf[1], newf[2] + 1, new[1], new[2] + 1);
+						LINE(newf[1] - iOutlineOffsetOuter, newf[2] - 1, newf[1] - iOutlineOffsetOuter, newf[2] + 2);
+
+						COLOR(iFlagRed, iFlagGreen, iFlagBlue, iFlagAlpha);
 						LINE(newf[1], newf[2], new[1], new[2]);
 					end
-					
-					last = new;
 				end
 			end
 		end
 
-	else
+	elseif config.line.enabled and config.flags.enabled then
+		function metatable:__call()
+			local positions, offset, last = self.m_aPositions, self.m_vFlagOffset, nil;
+				
+			for i = self.m_iSize, 1, -1 do
+				local this_pos = positions[i];
+				local new, newf = WORLD2SCREEN(this_pos), WORLD2SCREEN(this_pos + offset);
+				
+				if last and new then
+					COLOR(iLineRed, iLineGreen, iLineBlue, iLineAlpha);
+					LINE(last[1], last[2], new[1], new[2]);
+				end
+
+				if new and newf then
+					COLOR(iFlagRed, iFlagGreen, iFlagBlue, iFlagAlpha);
+					LINE(newf[1], newf[2], new[1], new[2]);
+				end
+					
+				last = new;
+			end
+		end
+
+	elseif config.line.enabled then
 		function metatable:__call()
 			local positions, last = self.m_aPositions, nil;
-
-			COLOR(fLineRed, fLineGreen, fLineBlue, fLineAlpha);
+			
+			COLOR(iLineRed, iLineGreen, iLineBlue, iLineAlpha);
 			for i = self.m_iSize, 1, -1 do
 				local new = WORLD2SCREEN(positions[i]);
 				
@@ -311,6 +384,21 @@ do
 				last = new;
 			end
 		end
+
+	else
+		function metatable:__call()
+			local positions, offset = self.m_aPositions, self.m_vFlagOffset;
+			
+			COLOR(iFlagRed, iFlagGreen, iFlagBlue, iFlagAlpha);
+			for i = self.m_iSize, 1, -1 do
+				local this_pos = positions[i];
+				local new, newf = WORLD2SCREEN(this_pos), WORLD2SCREEN(this_pos + offset);
+				
+				if new and newf then
+					LINE(newf[1], newf[2], new[1], new[2]);
+				end
+			end
+		end
 	end
 
 	setmetatable(TrajectoryLine, metatable);
@@ -318,35 +406,35 @@ end
 
 local ImpactPolygon = {};
 do
-	ImpactPolygon.m_iTexture = draw.CreateTextureRGBA(string.char(0xff, 0xff, 0xff, config.square.a, 0xff, 0xff, 0xff, config.square.a, 0xff, 0xff, 0xff, config.square.a, 0xff, 0xff, 0xff, config.square.a), 2, 2);
+	ImpactPolygon.m_iTexture = draw.CreateTextureRGBA(string.char(0xff, 0xff, 0xff, config.polygon.a, 0xff, 0xff, 0xff, config.polygon.a, 0xff, 0xff, 0xff, config.polygon.a, 0xff, 0xff, 0xff, config.polygon.a), 2, 2);
 
-	local fFlatSize = math.cos(math.pi / 4) * config.square.size;
+	local iSegments = config.polygon.segments;
+	local fSegmentAngleOffset = math.pi / iSegments;
+	local fSegmentAngle = fSegmentAngleOffset * 2;
 
 	local metatable = { __call = function(self, plane, origin) end; };
-	if config.square.enabled then
+	if config.polygon.enabled then
 		function metatable:__call(plane, origin)
 			local positions = {};
+			local radius = config.polygon.size;
 
 			if math.abs(plane.z) >= 0.99 then
-				positions = {
-					WORLD2SCREEN(origin + Vector3( fFlatSize,  fFlatSize, 0)),
-					WORLD2SCREEN(origin + Vector3( fFlatSize, -fFlatSize, 0)),
-					WORLD2SCREEN(origin + Vector3(-fFlatSize, -fFlatSize, 0)),
-					WORLD2SCREEN(origin + Vector3(-fFlatSize,  fFlatSize, 0))
-				};
-
-				if not positions[1] or not positions[2] or not positions[3] or not positions[4] then
-					return;
+				for i = 1, iSegments do
+					local ang = i * fSegmentAngle + fSegmentAngleOffset;
+					positions[i] = WORLD2SCREEN(origin + Vector3(radius * math.cos(ang), radius * math.sin(ang), 0));
+					if not positions[i] then
+						return;
+					end
 				end
-
+	
 			else
 				local right = Vector3(-plane.y, plane.x, 0);
 				local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
 
-				local radius = config.square.size / math.cos(math.asin(plane.z))
+				radius = radius / math.cos(math.asin(plane.z))
 
-				for i = 1, 4 do
-					local ang = i * math.pi / 2 + 0.785398163;
+				for i = 1, iSegments do
+					local ang = i * fSegmentAngle + fSegmentAngleOffset;
 					positions[i] = WORLD2SCREEN(origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang))));
 
 					if not positions[i] then
@@ -355,7 +443,7 @@ do
 				end
 			end
 
-			COLOR(config.square.r, config.square.g, config.square.b, 255);
+			COLOR(config.polygon.r, config.polygon.g, config.polygon.b, 255);
 
 			do
 				local cords, reverse_cords = {}, {};
@@ -374,7 +462,7 @@ do
 				POLYGON(self.m_iTexture, (sum < 0) and reverse_cords or cords, true)
 			end
 
-			local last = positions[4];
+			local last = positions[#positions];
 			for i = 1, #positions do
 				local new = positions[i];
 				
@@ -454,6 +542,10 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 
 	callbacks.Register("Draw", function()
 		TrajectoryLine.m_aPositions, TrajectoryLine.m_iSize = {}, 0;
+
+		if engine.Con_IsVisible() or engine.IsGameUIVisible() then
+			return;
+		end
 
 		local pLocal = entities.GetLocalPlayer();
 		if not pLocal or pLocal:InCond(7) or not pLocal:IsAlive() then return end
