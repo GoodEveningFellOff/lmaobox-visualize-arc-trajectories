@@ -249,7 +249,10 @@ do
 	local iOutlineOffsetOuter = (config.flags.size < 1) and -1 or 1;
 
 	local metatable = {__call = nil;};
-	if config.outline.line_and_flags then
+	if not config.line.enabled and not config.flags.enabled then
+		function metatable:__call() end
+	
+	elseif config.outline.line_and_flags then
 		if config.line.enabled and config.flags.enabled then
 			function metatable:__call()
 				local positions, offset, last = self.m_aPositions, self.m_vFlagOffset, nil;
