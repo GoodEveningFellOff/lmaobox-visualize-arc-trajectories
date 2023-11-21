@@ -1,6 +1,6 @@
 local config = {
 	polygon = {
-		enabled = false;
+		enabled = true;
 		r = 255;
 		g = 200;
 		b = 155;
@@ -37,6 +37,23 @@ local config = {
 		a = 155;
 	};
 
+	camera = {
+		enabled = true;
+		
+		x = 100;
+		y = 300;
+		width = 768;
+		height = 432;
+
+		source = {
+			width = 1344;
+			height = 756;
+			fov = 110;
+			distance = 200;
+			angle = 30;
+		};
+	};
+
 	-- 0.5 to 8, determines the size of the segments traced, lower values = worse performance (default 2.5)
 	measure_segment_size = 2.5;
 };
@@ -46,9 +63,11 @@ local config = {
 local CROSS = (function(a, b, c) return (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]); end);
 local CLAMP = (function(a, b, c) return (a<b) and b or (a>c) and c or a; end);
 local TRACE_HULL = engine.TraceHull;
+local TRACE_LINE = engine.TraceLine;
 local WORLD2SCREEN = client.WorldToScreen;
 local POLYGON = draw.TexturedPolygon;
 local LINE = draw.Line;
+local OUTLINED_RECT = draw.OutlinedRect;
 local COLOR = draw.Color;
 
 local aItemDefinitions = {};
@@ -412,6 +431,7 @@ local ImpactPolygon = {};
 do
 	ImpactPolygon.m_iTexture = draw.CreateTextureRGBA(string.char(0xff, 0xff, 0xff, config.polygon.a, 0xff, 0xff, 0xff, config.polygon.a, 0xff, 0xff, 0xff, config.polygon.a, 0xff, 0xff, 0xff, config.polygon.a), 2, 2);
 
+	local vPlane, vOrigin = Vector3(0, 0, 0), Vector3(0, 0, 0);
 	local iSegments = config.polygon.segments;
 	local fSegmentAngleOffset = math.pi / iSegments;
 	local fSegmentAngle = fSegmentAngleOffset * 2;
@@ -421,27 +441,29 @@ do
 
 		if config.outline.polygon then
 			function metatable:__call(plane, origin)
+				vPlane, vOrigin = plane or vPlane, origin or vOrigin;
+
 				local positions = {};
 				local radius = config.polygon.size;
 
-				if math.abs(plane.z) >= 0.99 then
+				if math.abs(vPlane.z) >= 0.99 then
 					for i = 1, iSegments do
 						local ang = i * fSegmentAngle + fSegmentAngleOffset;
-						positions[i] = WORLD2SCREEN(origin + Vector3(radius * math.cos(ang), radius * math.sin(ang), 0));
+						positions[i] = WORLD2SCREEN(vOrigin + Vector3(radius * math.cos(ang), radius * math.sin(ang), 0));
 						if not positions[i] then
 							return;
 						end
 					end
 	
 				else
-					local right = Vector3(-plane.y, plane.x, 0);
-					local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
+					local right = Vector3(-vPlane.y, vPlane.x, 0);
+					local up = Vector3(vPlane.z * right.y, -vPlane.z * right.x, (vPlane.y * right.x) - (vPlane.x * right.y));
 
-					radius = radius / math.cos(math.asin(plane.z))
+					radius = radius / math.cos(math.asin(vPlane.z))
 
 					for i = 1, iSegments do
 						local ang = i * fSegmentAngle + fSegmentAngleOffset;
-						positions[i] = WORLD2SCREEN(origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang))));
+						positions[i] = WORLD2SCREEN(vOrigin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang))));
 
 						if not positions[i] then
 							return;
@@ -497,27 +519,29 @@ do
 
 		else
 			function metatable:__call(plane, origin)
+				vPlane, vOrigin = plane or vPlane, origin or vOrigin;
+
 				local positions = {};
 				local radius = config.polygon.size;
 
-				if math.abs(plane.z) >= 0.99 then
+				if math.abs(vPlane.z) >= 0.99 then
 					for i = 1, iSegments do
 						local ang = i * fSegmentAngle + fSegmentAngleOffset;
-						positions[i] = WORLD2SCREEN(origin + Vector3(radius * math.cos(ang), radius * math.sin(ang), 0));
+						positions[i] = WORLD2SCREEN(vOrigin + Vector3(radius * math.cos(ang), radius * math.sin(ang), 0));
 						if not positions[i] then
 							return;
 						end
 					end
 	
 				else
-					local right = Vector3(-plane.y, plane.x, 0);
-					local up = Vector3(plane.z * right.y, -plane.z * right.x, (plane.y * right.x) - (plane.x * right.y));
+					local right = Vector3(-vPlane.y, vPlane.x, 0);
+					local up = Vector3(vPlane.z * right.y, -vPlane.z * right.x, (vPlane.y * right.x) - (vPlane.x * right.y));
 
-					radius = radius / math.cos(math.asin(plane.z))
+					radius = radius / math.cos(math.asin(vPlane.z))
 
 					for i = 1, iSegments do
 						local ang = i * fSegmentAngle + fSegmentAngleOffset;
-						positions[i] = WORLD2SCREEN(origin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang))));
+						positions[i] = WORLD2SCREEN(vOrigin + (right * (radius * math.cos(ang))) + (up * (radius * math.sin(ang))));
 
 						if not positions[i] then
 							return;
@@ -557,6 +581,28 @@ do
 	end
 
 	setmetatable(ImpactPolygon, metatable);
+end
+
+local ImpactCamera = {};
+do
+	local iX, iY, iWidth, iHeight = config.camera.x, config.camera.y, config.camera.width, config.camera.height;
+	local iResolutionX, iResolutionY = config.camera.source.width, config.camera.source.height;
+	ImpactCamera.Texture = materials.CreateTextureRenderTarget("ProjectileCamera", iResolutionX, iResolutionY);
+	local Material = materials.Create("ProjectileCameraMat", [[ UnlitGeneric { $basetexture "ProjectileCamera" }]] );
+
+	local metatable = {__call = function(self) end;};
+
+	if config.camera.enabled then
+		function metatable:__call()
+			COLOR(0, 0, 0, 255);
+			OUTLINED_RECT(iX - 1, iY - 1, iX + iWidth + 1, iY + iHeight + 1);
+
+			COLOR(255, 255, 255, 255);
+			render.DrawScreenSpaceRectangle(Material, iX, iY, iWidth, iHeight, 0, 0, iResolutionX, iResolutionY, iResolutionX, iResolutionY);
+		end
+	end
+
+	setmetatable(ImpactCamera, metatable);
 end
 
 local GetProjectileInformation = (function()
@@ -616,6 +662,7 @@ end)();
 
 local g_fTraceInterval = CLAMP(config.measure_segment_size, 0.5, 8) / 66;
 local g_fFlagInterval = g_fTraceInterval * 1320;
+local g_vEndOrigin = Vector3(0, 0, 0);
 
 callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 	callbacks.Unregister("CreateMove", "LoadPhysicsObjects")
@@ -630,10 +677,14 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 		end
 
 		local pLocal = entities.GetLocalPlayer();
-		if not pLocal or pLocal:InCond(7) or not pLocal:IsAlive() then return end
+		if not pLocal or pLocal:InCond(7) or not pLocal:IsAlive() then 
+			return;
+		end
 	
 		local pWeapon = pLocal:GetPropEntity("m_hActiveWeapon");
-		if not pWeapon or (pWeapon:GetWeaponProjectileType() or 0) < 2 then return end
+		if not pWeapon or (pWeapon:GetWeaponProjectileType() or 0) < 2 then 
+			return;
+		end
 
 		local iItemDefinitionIndex = pWeapon:GetPropInt("m_iItemDefinitionIndex");
 		local iItemDefinitionType = aItemDefinitions[iItemDefinitionIndex] or 0;
@@ -710,12 +761,45 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 		if TrajectoryLine.m_iSize == 0 then return end
 		if results then
 			ImpactPolygon(results.plane, results.endpos)
+			g_vEndOrigin = results.endpos;
 		end
 
-		if TrajectoryLine.m_iSize == 1 then return end
+		if TrajectoryLine.m_iSize == 1 then 
+			ImpactCamera();
+			return; 
+		end
+
 		TrajectoryLine();
+		ImpactCamera();
 	end)
 end)
+
+if config.camera.enabled then
+	callbacks.Register("RenderView", function(view)
+		local CustomCtx = client.GetPlayerView();
+		local source = config.camera.source;
+		local distance, angle = source.distance, source.angle;
+
+		CustomCtx.fov = source.fov;
+
+		local stDTrace = TRACE_LINE(g_vEndOrigin, g_vEndOrigin - (Vector3( angle, CustomCtx.angles.y, CustomCtx.angles.z):Forward() * distance), 100679683, function() return false; end);
+		local stUTrace = TRACE_LINE(g_vEndOrigin, g_vEndOrigin - (Vector3(-angle, CustomCtx.angles.y, CustomCtx.angles.z):Forward() * distance), 100679683, function() return false; end);
+
+		if stDTrace.fraction >= stUTrace.fraction - 0.1 then
+			CustomCtx.angles = EulerAngles( angle, CustomCtx.angles.y, CustomCtx.angles.z);
+			CustomCtx.origin = stDTrace.endpos;
+
+		else
+			CustomCtx.angles = EulerAngles(-angle, CustomCtx.angles.y, CustomCtx.angles.z);
+			CustomCtx.origin = stUTrace.endpos;
+		end
+
+
+		render.Push3DView(CustomCtx, 0x37, ImpactCamera.Texture)
+		render.ViewDrawScene(true, true, CustomCtx)
+		render.PopView();
+	end)
+end
 
 callbacks.Register("Unload", function()
 	PhysicsObjectHandler:Destroy();
