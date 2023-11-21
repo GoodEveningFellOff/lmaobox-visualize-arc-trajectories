@@ -42,12 +42,12 @@ local config = {
 		
 		x = 100;
 		y = 300;
-		width = 768;
-		height = 432;
+
+		aspect_ratio = 16 / 9; -- (4 / 3) (16 / 10) (16 / 9)
+		height = 200;
 
 		source = {
-			width = 1344;
-			height = 756;
+			scale = 0.75; -- Increase to upscale or downscale the image quality
 			fov = 110;
 			distance = 200;
 			angle = 30;
@@ -62,6 +62,7 @@ local config = {
 -- Boring shit ahead!
 local CROSS = (function(a, b, c) return (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]); end);
 local CLAMP = (function(a, b, c) return (a<b) and b or (a>c) and c or a; end);
+local FLOOR = math.floor;
 local TRACE_HULL = engine.TraceHull;
 local TRACE_LINE = engine.TraceLine;
 local WORLD2SCREEN = client.WorldToScreen;
@@ -585,8 +586,8 @@ end
 
 local ImpactCamera = {};
 do
-	local iX, iY, iWidth, iHeight = config.camera.x, config.camera.y, config.camera.width, config.camera.height;
-	local iResolutionX, iResolutionY = config.camera.source.width, config.camera.source.height;
+	local iX, iY, iWidth, iHeight = config.camera.x, config.camera.y, FLOOR(config.camera.height * config.camera.aspect_ratio), config.camera.height;
+	local iResolutionX, iResolutionY = FLOOR(iWidth * config.camera.source.scale), FLOOR(iHeight * config.camera.source.scale);
 	ImpactCamera.Texture = materials.CreateTextureRenderTarget("ProjectileCamera", iResolutionX, iResolutionY);
 	local Material = materials.Create("ProjectileCameraMat", [[ UnlitGeneric { $basetexture "ProjectileCamera" }]] );
 
@@ -715,7 +716,7 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 
 			if results.startsolid then return end
 				
-			local iSegments = math.floor((results.endpos - results.startpos):Length() / g_fFlagInterval);
+			local iSegments = FLOOR((results.endpos - results.startpos):Length() / g_fFlagInterval);
 			local vForward = vStartAngle:Forward();
 				
 			for i = 1, iSegments do
