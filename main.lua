@@ -1,6 +1,9 @@
+local DEBUG=(function()local aColorPrint={function(a)printc(0x37,0xff,0x37,0xff,a)end,function(a)printc(0x9b,0xff,0x37,0xff,a)end,function(a)printc(0xff,0xff,0x37,0xff,a)end,function(a)printc(0xff,0x9b,0x37,0xff,a)end,function(a)printc(0xff,0x37,0x37,0xff,a)end};return function(sComment, iLine, iPriority)aColorPrint[iPriority or 5](("[DEBUG] " .. sComment .. " (Line: %i, Time %s)"):format(iLine,os.clock()))end end)();
+DEBUG("Script load started!", 2, 2);
+
 local config = {
 	polygon = {
-		enabled = true;
+		enabled = false;
 		r = 255;
 		g = 200;
 		b = 155;
@@ -43,11 +46,11 @@ local config = {
 		x = 100;
 		y = 300;
 
-		aspect_ratio = 16 / 9; -- (4 / 3) (16 / 10) (16 / 9)
-		height = 200;
+		aspect_ratio = 4 / 3; -- (4 / 3) (16 / 10) (16 / 9)
+		height = 400;
 
 		source = {
-			scale = 0.75; -- Increase to upscale or downscale the image quality
+			scale = 0.5; -- Increase to upscale or downscale the image quality
 			fov = 110;
 			distance = 200;
 			angle = 30;
@@ -670,6 +673,8 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 
 	PhysicsObjectHandler:Initialize()
 
+	DEBUG("PhysicsObjectHandler initialized!", 676, 1);
+
 	callbacks.Register("Draw", function()
 		TrajectoryLine.m_aPositions, TrajectoryLine.m_iSize = {}, 0;
 
@@ -776,7 +781,7 @@ callbacks.Register("CreateMove", "LoadPhysicsObjects", function()
 end)
 
 if config.camera.enabled then
-	callbacks.Register("RenderView", function(view)
+	callbacks.Register("PostRenderView", function(view)
 		local CustomCtx = client.GetPlayerView();
 		local source = config.camera.source;
 		local distance, angle = source.distance, source.angle;
@@ -795,7 +800,7 @@ if config.camera.enabled then
 			CustomCtx.origin = stUTrace.endpos;
 		end
 
-
+		
 		render.Push3DView(CustomCtx, 0x37, ImpactCamera.Texture)
 		render.ViewDrawScene(true, true, CustomCtx)
 		render.PopView();
@@ -803,7 +808,13 @@ if config.camera.enabled then
 end
 
 callbacks.Register("Unload", function()
+	DEBUG("Script unload started!", 811, 2)
+
 	PhysicsObjectHandler:Destroy();
 	physics.DestroyEnvironment(PhysicsEnvironment);
 	draw.DeleteTexture(ImpactPolygon.m_iTexture);
+
+	DEBUG("Script fully unloaded!", 817, 1);
 end)
+
+DEBUG("Script fully loaded!", 820, 1);
